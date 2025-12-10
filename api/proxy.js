@@ -54,15 +54,11 @@ module.exports = async (req, res) => {
         // Rewrite M3U8 content to proxy .ts URLs
         const m3u8Content = await response.text();
         const baseUrl = new URL(targetUrl).origin + new URL(targetUrl).pathname.split('/').slice(0, -1).join('/') + '/';
+        const proxyBaseUrl = `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers['host']}`;
         const rewrittenContent = m3u8Content.split('\n').map(line => {
-          if (line.trim() && !line.startsWith('#')) {
-            try {
-              const fullUrl = new URL(line, baseUrl).href;
-              return `https://media-alpha-vert.vercel.app/api/proxy?url=${encodeURIComponent(fullUrl)}`;
-            } catch (error) {
-              console.error(`Error rewriting URL ${line}:`, error);
-              return line;
-            }
+          if (line.trim() && !line.startsWith('#') && line.match(/\.ts$/)) {
+            const fullUrl = baseUrl + line.trim();
+            return `${proxyBaseUrl}/api/proxy?url=${encodeURIComponent(fullUrl)}`;
           }
           return line;
         }).join('\n');
