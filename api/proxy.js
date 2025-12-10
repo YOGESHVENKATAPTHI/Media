@@ -41,6 +41,15 @@ module.exports = async (req, res) => {
       delete headers['transfer-encoding'];
       delete headers['upgrade'];
 
+      // Ensure a sensible default User-Agent and Referer are set for upstream requests
+      headers['user-agent'] = headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      try {
+        const refererUrl = new URL(targetUrl).origin;
+        headers['referer'] = headers['referer'] || refererUrl;
+      } catch (err) {
+        // ignore invalid URL
+      }
+
       const response = await fetch(targetUrl, {
         method: req.method,
         headers,
