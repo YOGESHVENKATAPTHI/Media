@@ -47,6 +47,36 @@ module.exports = async (req, res) => {
         redirect: 'follow',
       });
 
+      // Check if this is an M3U8 playlist that needs URL rewriting
+      const isM3U8 = response.headers.get('content-type') === 'application/x-mpegurl' || targetUrl.toLowerCase().endsWith('.m3u8');
+
+      if (isM3U8) {
+        // Rewrite M3U8 content to proxy .ts URLs
+        const m3u8Content = await response.text();
+        const baseUrl = new URL(targetUrl).origin + new URL(targetUrl).pathname.split('/').slice(0, -1).join('/') + '/';
+        const rewrittenContent = m3u8Content.split('\n').map(line => {
+          if (line.trim() && !line.startsWith('#')) {
+            try {
+              const fullUrl = new URL(line, baseUrl).href;
+              return `https://media-alpha-vert.vercel.app/api/proxy?url=${encodeURIComponent(fullUrl)}`;
+            } catch (error) {
+              console.error(`Error rewriting URL ${line}:`, error);
+              return line;
+            }
+          }
+          return line;
+        }).join('\n');
+
+        // Set CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Content-Type', 'application/x-mpegurl');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.send(rewrittenContent);
+        return;
+      }
+
       // Forward status and headers
       res.status(response.status);
       response.headers.forEach((value, key) => {
